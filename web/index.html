@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iBanking – Đóng học phí TDTU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16302b;--paper:#f4f6f2;--card:#fff;--line:#d9dfd6;--brand:#0f5c4d;--brand-d:#0a4439;--gold:#d99a2b;--bad:#b3392f;--ok:#1d7a4d;--mut:#5f6f69}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 "Be Vietnam Pro",system-ui,sans-serif;background:var(--paper);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+header b{font-size:20px;letter-spacing:.2px}
+header button{background:transparent;border:1px solid #ffffff80;color:#fff}
+main{max-width:760px;margin:28px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:20px 22px;margin-bottom:16px}
+h2{font-size:18px;margin:0 0 12px}
+label{display:block;font-size:14px;color:var(--mut);margin:10px 0 4px}
+input[type=text],input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:4px;font:inherit}
+input[readonly]{background:#eef1ec}
+input:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+button{font:inherit;padding:10px 18px;border-radius:4px;border:1px solid var(--brand);background:var(--brand);color:#fff;cursor:pointer}
+button:hover:not(:disabled){background:var(--brand-d)}
+button:disabled{background:#c5cdc8;border-color:#c5cdc8;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--brand)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.amount{font-size:26px;font-weight:700}
+.msg{padding:10px 12px;border-radius:4px;margin:12px 0;font-size:15px}
+.msg.bad{background:#fbe9e7;color:var(--bad)}.msg.ok{background:#e4f3ea;color:var(--ok)}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tabs button{background:transparent;color:var(--brand)}.tabs button.on{background:var(--brand);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+.otp{font-size:28px;letter-spacing:10px;text-align:center}
+.tag{padding:2px 8px;border-radius:10px;font-size:13px}.SUCCESS{background:#e4f3ea;color:var(--ok)}.FAILED{background:#fbe9e7;color:var(--bad)}.PENDING_OTP{background:#fdf1d8;color:#8a5b00}
+.hide{display:none}
+.terms{max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:4px;padding:10px 14px;font-size:14px;background:#fafbf9;margin:12px 0 4px}
+.terms h3{font-size:15px;margin:0 0 6px}.terms ol{margin:0;padding-left:20px}.terms li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<header><b>iBanking · Đóng học phí</b><button id="logout" class="hide">Đăng xuất</button></header>
+<main>
+<!-- Đăng nhập -->
+<section id="login" class="card">
+  <h2>Đăng nhập</h2>
+  <label for="u">Username</label><input type="text" id="u" value="sv_an" autocomplete="username">
+  <label for="p">Password</label><input type="password" id="p" value="123456" autocomplete="current-password">
+  <div id="loginErr" class="msg bad hide"></div>
+  <p><button id="btnLogin">Đăng nhập</button></p>
+</section>
+
+<section id="app" class="hide">
+  <div class="tabs"><button id="tabPay" class="on">Thanh toán học phí</button><button id="tabHist">Lịch sử giao dịch</button></div>
+
+  <div id="viewPay">
+    <div class="card"><h2>1. Người nộp tiền</h2>
+      <div class="row"><div><label>Họ và tên</label><input type="text" id="payerName" readonly></div>
+      <div><label>Số điện thoại</label><input type="text" id="payerPhone" readonly></div></div>
+      <label>Email</label><input type="text" id="payerEmail" readonly></div>
+
+    <div class="card"><h2>2. Thông tin học phí</h2>
+      <label for="mssv">Mã số sinh viên (MSSV)</label>
+      <div style="display:flex;gap:8px"><input type="text" id="mssv" placeholder="Ví dụ: 52100001" inputmode="numeric"><button id="btnLookup" class="ghost">Tra cứu</button></div>
+      <div id="lookupErr" class="msg bad hide"></div>
+      <div id="tuitionBox" class="hide">
+        <div class="kv"><span>Họ và tên sinh viên</span><b id="stName"></b></div>
+        <div class="kv"><span>Học phí cần thanh toán</span><b id="stAmount"></b></div>
+        <div class="kv"><span>Trạng thái</span><b id="stStatus"></b></div>
+      </div></div>
+
+    <div class="card"><h2>3. Thông tin thanh toán</h2>
+      <div class="kv"><span>Số dư khả dụng</span><b id="balance"></b></div>
+      <div class="kv"><span>Số tiền cần thanh toán</span><span class="amount" id="payAmount">—</span></div>
+      <div class="terms" role="region" aria-label="Thỏa thuận và điều khoản" tabindex="0">
+        <h3>Thỏa thuận và điều khoản sử dụng dịch vụ iBanking</h3>
+        <ol>
+          <li>Bạn xác nhận thông tin MSSV, tên sinh viên và số tiền học phí hiển thị ở trên là chính xác trước khi thanh toán.</li>
+          <li>Giao dịch chỉ hoàn tất khi nhập đúng mã OTP gửi tới email của bạn. Mã OTP có hiệu lực 5 phút và chỉ dùng được một lần; tuyệt đối không chia sẻ mã này cho bất kỳ ai.</li>
+          <li>Nhập sai OTP quá 5 lần hoặc để OTP hết hạn, giao dịch sẽ bị hủy và bạn cần thực hiện lại. Giao dịch bị hủy không bị trừ tiền.</li>
+          <li>Số tiền được trừ từ số dư tài khoản của bạn khi giao dịch thành công. Mỗi khoản học phí chỉ được thanh toán một lần; nếu có người khác thanh toán trước, giao dịch của bạn sẽ thất bại và không bị trừ tiền.</li>
+          <li>Trong trường hợp hệ thống gặp sự cố khi ghi nhận học phí, hệ thống sẽ tự động đối soát và cập nhật trạng thái học phí sau khi tiền đã được trừ.</li>
+          <li>Lịch sử giao dịch được lưu để bạn tra cứu. Email xác nhận được gửi tới địa chỉ email đã đăng ký.</li>
+        </ol>
+      </div>
+      <p><label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px">
+        <input type="checkbox" id="agree"> Tôi đồng ý với các thỏa thuận và điều khoản của hệ thống iBanking.</label></p>
+      <div id="payErr" class="msg bad hide"></div>
+      <button id="btnConfirm" disabled>Xác nhận giao dịch</button></div>
+
+    <div id="otpBox" class="card hide"><h2>4. Nhập mã OTP</h2>
+      <p>Mã OTP đã gửi tới email của bạn (xem tại <a href="http://localhost:8025" target="_blank">MailHog</a> khi chạy thử). Còn hiệu lực: <b id="countdown"></b></p>
+      <input type="text" id="otp" class="otp" maxlength="6" inputmode="numeric" placeholder="······" aria-label="Mã OTP">
+      <div id="otpErr" class="msg bad hide"></div>
+      <p style="display:flex;gap:8px"><button id="btnVerify">Xác nhận OTP</button><button id="btnResend" class="ghost">Gửi lại OTP</button></p></div>
+
+    <div id="resultBox" class="card hide"></div>
+  </div>
+
+  <div id="viewHist" class="card hide"><h2>Lịch sử giao dịch</h2>
+    <div style="overflow-x:auto"><table><thead><tr><th>Thời gian</th><th>MSSV</th><th>Sinh viên</th><th>Số tiền</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="histBody"></tbody></table></div>
+    <p id="histEmpty" class="hide">Chưa có giao dịch nào.</p></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id), API='/api';
+const vnd=n=>Number(n).toLocaleString('vi-VN')+' ₫';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// mã lỗi cho biết giao dịch đã kết thúc (FAILED) -> phải đóng ô OTP, không cho thử lại trên giao dịch đó
+const TERMINAL=new Set(['TUITION_UNAVAILABLE','TUITION_NOT_PAYABLE','AMOUNT_CHANGED','INSUFFICIENT_BALANCE','PAYMENT_ERROR','OTP_EXPIRED','OTP_LOCKED','TXN_NOT_PENDING','TXN_NOT_FOUND']);
+let token=sessionStorage.getItem('token'), balance=0, tuition=null, txnId=null, timer=null;
+
+async function api(path,opt={}){
+  const r=await fetch(API+path,{...opt,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})}});
+  let d=null; try{d=await r.json()}catch{}
+  if(!r.ok){
+    if(r.status===401&&token&&!path.includes('login')){logout();}
+    const det=d&&d.detail, e=new Error(typeof det==='object'&&det&&det.message?det.message:'Dữ liệu không hợp lệ hoặc lỗi hệ thống'); e.code=det&&det.code; throw e;
+  }
+  return d;
+}
+const show=(el,msg)=>{const e=$(el);if(msg===null){e.classList.add('hide');return}e.textContent=msg;e.classList.remove('hide')};
+
+async function login(){
+  show('loginErr',null);
+  try{
+    const d=await api('/user/auth/login',{method:'POST',body:JSON.stringify({username:$('u').value.trim(),password:$('p').value})});
+    token=d.access_token; sessionStorage.setItem('token',token); await enter();
+  }catch(e){show('loginErr',e.message)}
+}
+function logout(){
+  token=null;sessionStorage.clear();
+  // xóa sạch trạng thái phiên cũ để tài khoản đăng nhập sau không thấy dữ liệu của người trước
+  tuition=null;balance=0;resetFlow();
+  ['payErr','lookupErr','loginErr'].forEach(i=>show(i,null));
+  $('tuitionBox').classList.add('hide');$('payAmount').textContent='—';$('balance').textContent='';
+  $('mssv').value='';$('agree').checked=false;$('histBody').innerHTML='';
+  ['payerName','payerPhone','payerEmail'].forEach(i=>$(i).value='');
+  tab(false);refresh();
+  $('app').classList.add('hide');$('logout').classList.add('hide');$('login').classList.remove('hide');
+}
+async function enter(){
+  try{
+    const [me,acc]=await Promise.all([api('/user/users/me'),api('/payment/payments/account')]);
+    $('payerName').value=me.full_name;$('payerPhone').value=me.phone;$('payerEmail').value=me.email;
+    balance=acc.balance;$('balance').textContent=vnd(balance);
+    $('login').classList.add('hide');$('app').classList.remove('hide');$('logout').classList.remove('hide');
+  }catch(e){show('loginErr',e.message)}
+}
+async function lookup(){
+  show('lookupErr',null);tuition=null;resetFlow();
+  const m=$('mssv').value.trim(); if(!m){show('lookupErr','Vui lòng nhập MSSV');return}
+  try{
+    tuition=await api('/tuition/tuitions/'+encodeURIComponent(m));
+    $('stName').textContent=tuition.student_name;$('stAmount').textContent=vnd(tuition.amount);
+    $('stStatus').textContent={UNPAID:'Chưa thanh toán',LOCKED:'Đang được xử lý',PAID:'Đã thanh toán'}[tuition.status];
+    $('tuitionBox').classList.remove('hide');$('payAmount').textContent=vnd(tuition.amount);
+  }catch(e){$('tuitionBox').classList.add('hide');$('payAmount').textContent='—';show('lookupErr',e.message)}
+  refresh();
+}
+function refresh(){
+  let why=null;
+  if(!tuition) why='Hãy tra cứu MSSV trước khi thanh toán.';
+  else if(tuition.status!=='UNPAID') why='Khoản học phí này đã được thanh toán hoặc đang được xử lý.';
+  else if(balance<tuition.amount) why='Số dư khả dụng không đủ để thanh toán.';
+  show('payErr',why&&tuition?why:null);
+  $('btnConfirm').disabled=!!why||!$('agree').checked||!!txnId;
+}
+function resetFlow(){txnId=null;clearInterval(timer);$('otpBox').classList.add('hide');$('resultBox').classList.add('hide');$('otp').value='';show('otpErr',null)}
+async function confirmTxn(){
+  $('btnConfirm').disabled=true;show('payErr',null);
+  try{
+    const d=await api('/payment/payments',{method:'POST',body:JSON.stringify({mssv:tuition.mssv})});
+    txnId=d.transaction_id;startCountdown(d.expires_at);$('otpBox').classList.remove('hide');$('otp').focus();
+  }catch(e){show('payErr',e.message);$('btnConfirm').disabled=false}
+}
+function startCountdown(iso){
+  clearInterval(timer);const end=new Date(iso).getTime();
+  const tick=()=>{const s=Math.max(0,Math.floor((end-Date.now())/1000));$('countdown').textContent=s?`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`:'đã hết hạn';if(!s){clearInterval(timer);onExpired()}};
+  tick();timer=setInterval(tick,1000);
+}
+function onExpired(){
+  if(!txnId)return;
+  txnId=null;$('otpBox').classList.add('hide');$('otp').value='';refresh();
+  show('payErr','OTP đã hết hạn, giao dịch đã bị hủy. Vui lòng bấm "Xác nhận giao dịch" để thực hiện lại.');
+}
+async function endFlow(e){ // giao dịch đã FAILED phía server: đóng ô OTP, báo lỗi, mở lại nút thanh toán nếu hợp lệ
+  clearInterval(timer);$('otpBox').classList.add('hide');$('otp').value='';show('otpErr',null);txnId=null;
+  if(e.code==='TUITION_NOT_PAYABLE'&&tuition){tuition.status='LOCKED';$('stStatus').textContent='Đang được xử lý'}
+  refresh();show('payErr',e.message);
+  try{balance=(await api('/payment/payments/account')).balance;$('balance').textContent=vnd(balance)}catch{}
+}
+async function verify(){
+  show('otpErr',null);$('btnVerify').disabled=true;
+  try{
+    const d=await api(`/payment/payments/${txnId}/verify-otp`,{method:'POST',body:JSON.stringify({otp:$('otp').value.trim()})});
+    clearInterval(timer);balance=d.balance;$('balance').textContent=vnd(balance);
+    $('otpBox').classList.add('hide');
+    $('resultBox').innerHTML=`<div class="msg ok"><b>Thanh toán thành công.</b> Email xác nhận đã được gửi.</div>
+      <div class="kv"><span>Mã giao dịch</span><span>${esc(d.transaction_id)}</span></div>
+      <div class="kv"><span>MSSV</span><span>${esc(d.mssv)}</span></div>
+      <div class="kv"><span>Số tiền</span><b>${vnd(d.amount)}</b></div>
+      <div class="kv"><span>Số dư còn lại</span><b>${vnd(d.balance)}</b></div>`;
+    $('resultBox').classList.remove('hide');txnId=null;tuition=null;$('tuitionBox').classList.add('hide');$('payAmount').textContent='—';$('agree').checked=false;$('mssv').value='';refresh();
+  }catch(e){
+    if(TERMINAL.has(e.code)) await endFlow(e);
+    else{show('otpErr',e.message);$('otp').select()}
+  }finally{$('btnVerify').disabled=false}
+}
+async function resend(){
+  show('otpErr',null);
+  try{const d=await api(`/payment/payments/${txnId}/resend-otp`,{method:'POST'});startCountdown(d.expires_at);$('otp').value=''}
+  catch(e){if(TERMINAL.has(e.code))await endFlow(e);else show('otpErr',e.message)}
+}
+async function history(){
+  const rows=await api('/payment/payments/history');
+  $('histBody').innerHTML=rows.map(r=>`<tr><td>${new Date(r.created_at).toLocaleString('vi-VN')}</td><td>${esc(r.mssv)}</td><td>${esc(r.student_name)}</td><td>${vnd(r.amount)}</td><td><span class="tag ${esc(r.status)}">${esc(({SUCCESS:'Thành công',FAILED:'Thất bại',PENDING_OTP:'Chờ OTP'})[r.status]||r.status)}</span></td><td>${esc(r.reason)}</td></tr>`).join('');
+  $('histEmpty').classList.toggle('hide',rows.length>0);
+}
+function tab(h){$('viewPay').classList.toggle('hide',h);$('viewHist').classList.toggle('hide',!h);$('tabPay').classList.toggle('on',!h);$('tabHist').classList.toggle('on',h);if(h)history()}
+$('btnLogin').onclick=login;$('logout').onclick=logout;$('btnLookup').onclick=lookup;$('btnConfirm').onclick=confirmTxn;
+$('btnVerify').onclick=verify;$('btnResend').onclick=resend;$('agree').onchange=refresh;
+$('mssv').onkeydown=e=>{if(e.key==='Enter')lookup()};$('p').onkeydown=e=>{if(e.key==='Enter')login()};$('otp').onkeydown=e=>{if(e.key==='Enter')verify()};
+$('tabPay').onclick=()=>tab(false);$('tabHist').onclick=()=>tab(true);
+if(token)enter();
+</script>
+</body></html>

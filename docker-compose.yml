@@ -1,0 +1,50 @@
+x-env: &env
+  JWT_SECRET: change-me-in-production
+  INTERNAL_KEY: internal-secret-key
+x-svc: &svc
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: {POSTGRES_PASSWORD: postgres}
+    volumes: ["pgdata:/var/lib/postgresql/data", "./db/init.sql:/docker-entrypoint-initdb.d/init.sql"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 3s, retries: 20}
+  mailhog:
+    image: mailhog/mailhog
+    ports: ["8025:8025"]          # Web UI xem email OTP
+  user-service:
+    <<: *svc
+    build: {context: ./services, args: {SERVICE: user}}
+    environment: {<<: *env, DATABASE_URL: postgresql://postgres:postgres@postgres/userdb}
+    ports: ["8001:8000"]          # Swagger: http://localhost:8001/docs
+  tuition-service:
+    <<: *svc
+    build: {context: ./services, args: {SERVICE: tuition}}
+    environment: {<<: *env, DATABASE_URL: postgresql://postgres:postgres@postgres/tuitiondb}
+    ports: ["8002:8000"]
+  notification-service:
+    restart: unless-stopped
+    build: {context: ./services, args: {SERVICE: notification}}
+    environment: {<<: *env, SMTP_HOST: mailhog, SMTP_PORT: "1025"}
+    depends_on: [mailhog]
+    ports: ["8004:8000"]
+  payment-service:
+    <<: *svc
+    build: {context: ./services, args: {SERVICE: payment}}
+    environment:
+      <<: *env
+      DATABASE_URL: postgresql://postgres:postgres@postgres/paymentdb
+      USER_URL: http://user-service:8000
+      TUITION_URL: http://tuition-service:8000
+      NOTIFY_URL: http://notification-service:8000
+    ports: ["8003:8000"]
+  web:
+    image: nginx:alpine
+    volumes: ["./web/index.html:/usr/share/nginx/html/index.html:ro", "./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+    ports: ["8080:80"]
+    depends_on: [user-service, tuition-service, payment-service]
+volumes:
+  pgdata:
