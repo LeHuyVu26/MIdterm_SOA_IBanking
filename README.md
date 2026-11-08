@@ -299,4 +299,5 @@ Sử dụng `threading.Barrier` để đồng bộ nhiều luồng (threads), gi
 | **Unit Test** | Logic nghiệp vụ và các hàm độc lập. | Không cần Docker hoặc Database. |
 | **API Test** | REST API, nghiệp vụ, xác thực và phân quyền. | Docker Compose và các Service đang chạy. |
 | **Concurrency Test** | Tranh chấp dữ liệu và giao dịch đồng thời. | Docker Compose và các Service đang chạy. |
+
 Ba tầng kiểm thử kết hợp giúp đánh giá hệ thống từ cấp độ hàm riêng lẻ đến API tích hợp và các tình huống tranh chấp giao dịch, qua đó tăng độ tin cậy và khả năng đảm bảo tính toàn vẹn dữ liệu của hệ thống.
