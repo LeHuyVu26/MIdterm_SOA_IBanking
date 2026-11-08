@@ -49,6 +49,7 @@ flowchart LR
 ### ERD (mỗi service sở hữu DB riêng; liên kết giữa service qua ID, không có FK chéo DB — FK thật chỉ có trong `paymentdb`)
 ```mermaid
 erDiagram
+  direction LR
   USERS {
     int id PK
     string username UK
