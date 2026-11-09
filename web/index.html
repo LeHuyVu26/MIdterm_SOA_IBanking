@@ -132,7 +132,7 @@ async function login(){
 }
 function logout(){
   token=null;sessionStorage.clear();
-  // xóa sạch trạng thái phiên cũ để tài khoản đăng nhập sau không thấy dữ liệu của người trước
+  // xóa sạch trạng thái phiên cũ
   tuition=null;balance=0;resetFlow();
   ['payErr','lookupErr','loginErr'].forEach(i=>show(i,null));
   $('tuitionBox').classList.add('hide');$('payAmount').textContent='—';$('balance').textContent='';

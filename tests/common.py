@@ -1,4 +1,3 @@
-"""Hàm dùng chung cho integration test."""
 import re, time, email, threading, requests, concurrent.futures as cf
 
 GW, MH = "http://localhost:8080/api", "http://localhost:8025/api/v2/messages?limit=200"
@@ -13,7 +12,6 @@ def init(h, mssv):
     return r.json()["transaction_id"]
 
 def otp_of(txn, skip=()):
-    """Đọc OTP mới nhất của giao dịch từ MailHog (bỏ qua các mã trong `skip`)."""
     for _ in range(30):
         for m in requests.get(MH).json()["items"]:
             body = email.message_from_string(m["Raw"]["Data"]).get_payload(decode=True).decode("utf-8", "ignore") # type: ignore
@@ -33,13 +31,12 @@ def wrong_otp(good):
     return "000000" if good != "000000" else "111111"
 
 def run_parallel(jobs):
-    """Lấy OTP của TẤT CẢ giao dịch trước, mở sẵn kết nối, rồi dùng Barrier để mọi thread bắn verify cùng lúc."""
     otps = [otp_of(t) for _, t in jobs]
     barrier = threading.Barrier(len(jobs), timeout=15)
 
     def fire(h, txn, otp):
         s = requests.Session()
-        s.get(f"{GW}/payment/payments/account", headers=h)  # làm nóng kết nối keep-alive
+        s.get(f"{GW}/payment/payments/account", headers=h)
         barrier.wait()
         return post_verify(s, h, txn, otp).status_code
 

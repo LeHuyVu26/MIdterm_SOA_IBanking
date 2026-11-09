@@ -1,4 +1,3 @@
-"""Tuition Service: dữ liệu học phí. Trạng thái: UNPAID -> LOCKED -> PAID. DB riêng: tuitiondb."""
 import os, time, jwt, psycopg2, logging, threading
 from contextlib import contextmanager
 from psycopg2.extras import RealDictCursor
@@ -20,8 +19,10 @@ def tx():
     finally:
         c.close()
 
-SEED = [("52100001", "Nguyễn Văn An", 15_000_000), ("52100002", "Trần Thị Bình", 15_000_000),
-        ("52100003", "Lê Minh Chi", 12_000_000), ("52100004", "Phạm Quốc Dũng", 18_500_000),
+SEED = [("52100001", "Nguyễn Văn An", 15_000_000), 
+        ("52100002", "Trần Thị Bình", 15_000_000),
+        ("52100003", "Lê Minh Chi", 12_000_000), 
+        ("52100004", "Phạm Quốc Dũng", 18_500_000),
         ("52100005", "Phan Đức Tài", 9_000_000)]
 
 def release_stale_locks():
@@ -58,12 +59,12 @@ def init():
             break
         except psycopg2.OperationalError:
             time.sleep(2)
-    threading.Thread(target=maintenance_loop, daemon=True).start()  # KHỞI ĐỘNG JOB
+    threading.Thread(target=maintenance_loop, daemon=True).start()
 
 @app.get("/tuitions/{mssv}")
 def get_tuition(mssv: str, authorization: str = Header(None)):
     try:
-        jwt.decode(authorization.split()[1], SECRET, algorithms=["HS256"])
+        jwt.decode(authorization.split()[-1], SECRET, algorithms=["HS256"])
     except Exception:
         raise err(401, "UNAUTHORIZED", "Chưa đăng nhập hoặc token hết hạn")
     with tx() as cur:

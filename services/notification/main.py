@@ -1,4 +1,3 @@
-"""Notification Service: gửi email (OTP, xác nhận thanh toán) qua SMTP."""
 import os, smtplib
 from email.message import EmailMessage
 from fastapi import FastAPI, HTTPException, Header
@@ -12,7 +11,7 @@ def send(to, subject, body):
     m["From"], m["To"], m["Subject"] = os.environ.get("MAIL_FROM", "ibanking@tdtu.local"), to, subject
     m.set_content(body)
     with smtplib.SMTP(os.environ.get("SMTP_HOST", "mailhog"), int(os.environ.get("SMTP_PORT", 1025)), timeout=10) as s:
-        if os.environ.get("SMTP_USER"):  # dùng SMTP thật (vd Gmail) nếu có cấu hình
+        if os.environ.get("SMTP_USER"):
             s.starttls(); s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
         s.send_message(m)
 

@@ -1,4 +1,3 @@
-"""Unit test: không cần Docker/DB. Chạy:  pip install -r tests/requirements.txt && pytest tests/test_unit.py -v"""
 import importlib.util, pathlib, time, jwt, pytest, requests
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -18,7 +17,7 @@ def token(sub="1", exp=3600, secret=None):
 # ---------------- User service ----------------
 def test_password_hash_roundtrip_and_salted():
     h1, h2 = user.hash_pw("123456"), user.hash_pw("123456")
-    assert h1 != h2 and "123456" not in h1            # có salt, không lưu plaintext
+    assert h1 != h2 and "123456" not in h1
     assert user.check_pw("123456", h1) and not user.check_pw("sai", h1)
 
 # ---------------- Payment: auth & validation ----------------
@@ -60,15 +59,15 @@ def test_new_otp_format_lock_and_5_minutes():
     cur = FakeCur()
     code, exp = pay.new_otp(cur, "txn-1")
     assert len(code) == 6 and code.isdigit() and exp == "T+5m"
-    assert "pg_advisory_xact_lock" in cur.sql[0]                      # tuần tự hóa kiểm tra trùng
-    assert any(s.startswith("UPDATE otps SET used=true") for s in cur.sql)  # vô hiệu OTP cũ
-    assert any("interval '5 minutes'" in s for s in cur.sql)           # hạn 5 phút
+    assert "pg_advisory_xact_lock" in cur.sql[0] # tuần tự hóa kiểm tra
+    assert any(s.startswith("UPDATE otps SET used=true") for s in cur.sql) # vô hiệu OTP cũ
+    assert any("interval '5 minutes'" in s for s in cur.sql) # hạn 5 phút
 
 def test_new_otp_regenerates_on_collision(monkeypatch):
     seq = iter([123456, 123456, 654321])
     monkeypatch.setattr(pay.secrets, "randbelow", lambda n: next(seq))
     code, _ = pay.new_otp(FakeCur(taken={"123456"}), "txn-2")
-    assert code == "654321"                                           # bỏ mã trùng, sinh mã mới
+    assert code == "654321" # test trùng OTP -> sinh lại cho đến khi không trùng
 
 def test_new_otp_keeps_leading_zeros(monkeypatch):
     monkeypatch.setattr(pay.secrets, "randbelow", lambda n: 42)
@@ -81,7 +80,7 @@ class Resp:
 def test_safe_release_swallows_network_error(monkeypatch):
     def boom(*a): raise requests.ConnectionError("down")
     monkeypatch.setattr(pay, "tuition_call", boom)
-    pay.safe_release("52100001", "t")          # không được ném lỗi
+    pay.safe_release("52100001", "t")
 
 def test_safe_release_swallows_http_error(monkeypatch):
     monkeypatch.setattr(pay, "tuition_call", lambda *a: Resp(False, 500))
@@ -106,7 +105,7 @@ def test_internal_key_required(fn):
     with pytest.raises(HTTPException) as e: fn("sai")
     assert e.value.status_code == 403
     with pytest.raises(HTTPException): fn(None)
-    fn(tuition.KEY)                            # đúng key -> không lỗi
+    fn(tuition.KEY) # đúng key -> không lỗi
 
 # ---------------- Notification content ----------------
 def test_otp_mail_contains_code_txn_and_ttl(monkeypatch):

@@ -9,11 +9,10 @@ docker compose up --build -d
 |---|---|
 | Web UI (qua API Gateway nginx) | http://localhost:8080 |
 | MailHog – xem email OTP/xác nhận | http://localhost:8025 |
-| Swagger user / tuition / payment / notification | http://localhost:8001/docs · 8002 · 8003 · 8004 |
 
 Tài khoản mẫu (mật khẩu `123456`): `sv_an`, `sv_binh`, `sv_chi` (số dư 20.000.000 ₫), `sv_dung` (1.000.000 ₫ – demo không đủ số dư).
 MSSV mẫu: `52100001` (15tr), `52100002` (15tr), `52100003` (12tr), `52100004` (18,5tr), `52100005` (9tr).
-Reset dữ liệu: `docker compose down -v`. Dùng SMTP thật: đặt `SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM` cho `notification-service`.
+Reset dữ liệu: `docker compose down -v`.
 
 **Test tự động** (pytest, thư mục `tests/`):
 ```bash

@@ -1,4 +1,3 @@
-"""User Service: đăng nhập (JWT) + hồ sơ người dùng. DB riêng: userdb."""
 import os, time, hashlib, secrets, jwt, psycopg2
 from contextlib import contextmanager
 from psycopg2.extras import RealDictCursor
@@ -67,7 +66,7 @@ def login(b: Login):
 @app.get("/users/me")
 def me(authorization: str = Header(None)):
     try:
-        uid = int(jwt.decode(authorization.split()[1], SECRET, algorithms=["HS256"])["sub"])
+        uid = int(jwt.decode(authorization.split()[-1], SECRET, algorithms=["HS256"])["sub"])
     except Exception:
         raise err(401, "UNAUTHORIZED", "Chưa đăng nhập hoặc token hết hạn")
     with tx() as cur:

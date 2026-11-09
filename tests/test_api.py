@@ -1,5 +1,3 @@
-"""Kiểm thử REST API qua API Gateway (không làm thay đổi số dư / trạng thái học phí).
-Chạy TRƯỚC test_concurrency (pytest chạy theo thứ tự tên file)."""
 import uuid, pytest, requests
 from common import *
 

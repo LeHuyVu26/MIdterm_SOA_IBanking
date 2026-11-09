@@ -1,17 +1,3 @@
-"""Payment Service: tài khoản, giao dịch, OTP, transaction + concurrency. DB riêng: paymentdb.
-
-Luồng thanh toán (Saga có bù trừ):
-  1. POST /payments            -> kiểm tra, tạo giao dịch PENDING_OTP, sinh OTP, gửi email
-  2. POST /payments/{id}/verify-otp:
-       a. khóa dòng giao dịch (FOR UPDATE), kiểm tra OTP (1 lần, chưa hết hạn, tối đa MAX_OTP_ATTEMPTS lần sai)
-       b. Tuition.reserve  (UPDATE có điều kiện -> chỉ 1 người giành được học phí)
-       c. DB transaction: SELECT balance FOR UPDATE -> trừ tiền -> giao dịch SUCCESS (atomic)
-       d. Tuition.confirm (PAID) ; nếu b/c lỗi -> Tuition.release (bù trừ)
-       e. gửi email xác nhận
-Job nền (maintenance_loop):
-  - expire_stale_otps : giao dịch PENDING_OTP mà OTP mới nhất đã hết hạn -> FAILED
-  - reconcile_payments: giao dịch SUCCESS mà học phí chưa được confirm -> gọi lại confirm (đối soát)
-"""
 import os, time, uuid, secrets, logging, threading, jwt, requests, psycopg2
 from contextlib import contextmanager
 from psycopg2.extras import RealDictCursor
@@ -21,8 +7,8 @@ from pydantic import BaseModel, Field
 SECRET, KEY = os.environ["JWT_SECRET"], os.environ["INTERNAL_KEY"]
 USER, TUITION, NOTIFY = os.environ["USER_URL"], os.environ["TUITION_URL"], os.environ["NOTIFY_URL"]
 IH = {"X-Internal-Key": KEY}
-MAX_OTP_ATTEMPTS = 5                                    # sai đủ số lần này -> giao dịch FAILED
-SWEEP_INTERVAL = int(os.environ.get("SWEEP_INTERVAL", "30"))  # giây giữa 2 lần chạy job nền
+MAX_OTP_ATTEMPTS = 5  # sai đủ 5 lần -> FAILED
+SWEEP_INTERVAL = int(os.environ.get("SWEEP_INTERVAL", "30"))  # thời gian giữa 2 lần chạy job nền
 log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="Payment Service")
 
@@ -72,13 +58,8 @@ def init():
             time.sleep(2)
     threading.Thread(target=maintenance_loop, daemon=True, name="maintenance").start()
 
-# ----------------------------------------------------------------------------------------------
-# Job nền: hết hạn OTP + đối soát Saga
-# ----------------------------------------------------------------------------------------------
+# hết hạn OTP và giao dịch PENDING_OTP -> FAILED (không gọi Tuition.release vì chưa trừ tiền)
 def expire_stale_otps():
-    """PENDING_OTP mà OTP mới nhất chưa dùng & đã hết hạn -> FAILED.
-    - Chỉ xét OTP mới nhất: giao dịch đang chạy Saga (OTP đã used=true) không bao giờ bị quét nhầm.
-    - FOR UPDATE SKIP LOCKED: bỏ qua dòng đang bị verify/resend giữ khóa."""
     with tx() as cur:
         cur.execute("""
             WITH stale AS (
@@ -92,11 +73,9 @@ def expire_stale_otps():
             WHERE id IN (SELECT id FROM stale)""")
         if cur.rowcount:
             log.info("EXPIRE: đã hủy %s giao dịch hết hạn OTP", cur.rowcount)
-
+            
+# giao dịch SUCCESS mà học phí chưa được confirm -> gọi lại confirm (đối soát)
 def reconcile_payments():
-    """Đối soát: giao dịch SUCCESS (tiền đã trừ) nhưng học phí chưa confirm -> gọi lại confirm.
-    Giả định Tuition `confirm` idempotent theo txn_id (gọi lại với cùng txn_id đã PAID vẫn trả 200).
-    Chỉ xét giao dịch SUCCESS đã > 60s để không tranh với vòng thử lại trong verify()."""
     with tx() as cur:
         cur.execute("""SELECT id, mssv FROM transactions
                        WHERE status='SUCCESS' AND NOT tuition_confirmed
@@ -124,15 +103,13 @@ def maintenance_loop():
                 log.exception("maintenance job %s lỗi", job.__name__)
         time.sleep(SWEEP_INTERVAL)
 
-# ----------------------------------------------------------------------------------------------
 def uid_of(a):
     try:
-        return int(jwt.decode(a.split()[1], SECRET, algorithms=["HS256"])["sub"])
+        return int(jwt.decode(a.split()[-1], SECRET, algorithms=["HS256"])["sub"])
     except Exception:
         raise err(401, "UNAUTHORIZED", "Chưa đăng nhập hoặc token hết hạn")
 
 def new_otp(cur, txn):
-    """OTP 6 số, gắn với giao dịch, hiệu lực 5 phút, không trùng OTP còn hiệu lực của giao dịch khác."""
     cur.execute("SELECT pg_advisory_xact_lock(42)")  # tuần tự hóa việc sinh OTP để kiểm tra trùng chính xác
     cur.execute("UPDATE otps SET used=true WHERE txn_id=%s AND used=false", (txn,))  # vô hiệu OTP cũ
     while True:
@@ -144,7 +121,6 @@ def new_otp(cur, txn):
     return code, cur.fetchone()["expires_at"]
 
 def fail_txn(cur, txn, reason):
-    """Đánh dấu FAILED trong CÙNG transaction đang mở (gọi trước khi thoát `with tx()`)."""
     cur.execute("UPDATE transactions SET status='FAILED', reason=%s, completed_at=now() WHERE id=%s", (reason, txn))
 
 def notify(path, payload):
@@ -156,9 +132,8 @@ def notify(path, payload):
 def tuition_call(action, mssv, txn):
     return requests.post(f"{TUITION}/internal/tuitions/{mssv}/{action}", json={"txn_id": str(txn)}, headers=IH, timeout=10)
 
+# trả học phí về UNPAID nếu Tuition.confirm thất bại (bù trừ) 
 def safe_release(mssv, txn):
-    """Bù trừ: trả học phí về UNPAID. Không bao giờ ném lỗi để các bước dọn dẹp phía sau (set_status FAILED)
-    luôn được chạy; nếu release thất bại, học phí giữ LOCKED và chỉ được log lại để xử lý/đối soát."""
     try:
         r = tuition_call("release", mssv, txn)
         if not r.ok:
@@ -247,9 +222,6 @@ class Insufficient(Exception): pass
 @app.post("/payments/{txn_id}/verify-otp")
 def verify(txn_id: uuid.UUID, b: OtpReq, authorization: str = Header(None)):
     uid, txn = uid_of(authorization), str(txn_id)
-    # --- (a) kiểm tra & tiêu thụ OTP trong 1 transaction, khóa dòng giao dịch ---
-    # Lưu ý: HTTPException ném BÊN TRONG `with tx()` sẽ rollback mọi UPDATE (kể cả đếm lần sai),
-    # nên các lỗi cần ghi DB được gán vào `bad` rồi raise sau khi đã commit.
     bad = None
     with tx() as cur:
         cur.execute("SELECT * FROM transactions WHERE id=%s AND user_id=%s FOR UPDATE", (txn, uid))
@@ -274,7 +246,8 @@ def verify(txn_id: uuid.UUID, b: OtpReq, authorization: str = Header(None)):
         else:
             cur.execute("UPDATE otps SET used=true WHERE id=%s", (o["id"],)) # type: ignore
     if bad: raise bad
-    # --- (b) giành khoản học phí (atomic ở Tuition Service) ---
+    
+    # gọi Tuition.reserve để khóa học phí (chỉ 1 người giành được)
     try:
         r = tuition_call("reserve", t["mssv"], txn) # type: ignore
     except requests.RequestException:
@@ -287,7 +260,8 @@ def verify(txn_id: uuid.UUID, b: OtpReq, authorization: str = Header(None)):
         safe_release(t["mssv"], txn) # type: ignore
         set_status(txn, "FAILED", "Số tiền học phí đã thay đổi")
         raise err(409, "AMOUNT_CHANGED", "Số tiền học phí đã thay đổi, vui lòng thực hiện lại")
-    # --- (c) trừ tiền + ghi nhận giao dịch trong 1 DB transaction, khóa dòng tài khoản ---
+    
+    # trừ tiền trong DB transaction (SELECT FOR UPDATE -> UPDATE)
     try:
         with tx() as cur:
             cur.execute("SELECT balance FROM accounts WHERE user_id=%s FOR UPDATE", (uid,))
@@ -305,8 +279,8 @@ def verify(txn_id: uuid.UUID, b: OtpReq, authorization: str = Header(None)):
         safe_release(t["mssv"], txn) # type: ignore
         set_status(txn, "FAILED", "Lỗi hệ thống khi trừ tiền")
         raise err(500, "PAYMENT_ERROR", "Lỗi hệ thống, giao dịch không được thực hiện")
-    # --- (d) gạch nợ học phí (thử lại nếu lỗi). Tiền đã trừ nên giao dịch vẫn là SUCCESS với người dùng;
-    #     nếu 3 lần đều lỗi, cờ tuition_confirmed giữ false và job reconcile_payments sẽ gạch nợ bù. ---
+    
+    # gọi Tuition.confirm để gạch nợ (PAID)
     confirmed = False
     for _ in range(3):
         try:
@@ -324,7 +298,7 @@ def verify(txn_id: uuid.UUID, b: OtpReq, authorization: str = Header(None)):
             log.exception("Không ghi được tuition_confirmed cho txn %s (job đối soát sẽ xử lý)", txn)
     else:
         log.error("Confirm học phí thất bại sau 3 lần, chờ job đối soát: txn %s mssv %s", txn, t["mssv"]) # type: ignore
-    # --- (e) email xác nhận ---
+    # email xác nhận
     if not notify("/internal/notify/payment-success", {"email": t["payer_email"], "name": t["payer_name"], "txn_id": txn, # type: ignore
                                                        "mssv": t["mssv"], "amount": t["amount"], "balance": new_bal}): # type: ignore
         # giao dịch đã thành công, không rollback; chỉ ghi log để vận hành xử lý/gửi lại
