@@ -113,7 +113,7 @@ flowchart LR
   US --- D1[(userdb)]
   TS --- D2[(tuitiondb)]
   PS --- D3[(paymentdb)]
-  NS -->|SMTP| ES[[Email Server / MailHog]]
+  NS -->|SMTP| ES[[Email Server / Gmail SMTP]]
 ```
 | Service | Trách nhiệm | Dữ liệu sở hữu |
 |---|---|---|
