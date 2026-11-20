@@ -1,5 +1,6 @@
 import os, smtplib
 from email.message import EmailMessage
+from email.utils import formataddr
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 
@@ -7,13 +8,22 @@ app = FastAPI(title="Notification Service")
 KEY = os.environ["INTERNAL_KEY"]
 
 def send(to, subject, body):
+    host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    port = int(os.environ.get("SMTP_PORT", 587))
+    user = os.environ.get("SMTP_USER", "")
+    pw = os.environ.get("SMTP_PASS", "").replace(" ", "")
+    if not user or not pw:
+        raise RuntimeError("Chưa cấu hình SMTP_USER / SMTP_PASS (xem file .env)")
     m = EmailMessage()
-    m["From"], m["To"], m["Subject"] = os.environ.get("MAIL_FROM", "ibanking@tdtu.local"), to, subject
+    m["From"] = formataddr((os.environ.get("MAIL_FROM_NAME", "iBanking TDTU"), os.environ.get("MAIL_FROM") or user))
+    m["To"], m["Subject"] = to, subject
     m.set_content(body)
-    with smtplib.SMTP(os.environ.get("SMTP_HOST", "mailhog"), int(os.environ.get("SMTP_PORT", 1025)), timeout=10) as s:
-        if os.environ.get("SMTP_USER"):
-            s.starttls(); s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
-        s.send_message(m)
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=20) as s:
+            s.login(user, pw); s.send_message(m)
+    else:
+        with smtplib.SMTP(host, port, timeout=20) as s:
+            s.starttls(); s.login(user, pw); s.send_message(m)
 
 class OtpMail(BaseModel):
     email: str; name: str; otp: str; txn_id: str; mssv: str; amount: int; minutes: int = 5

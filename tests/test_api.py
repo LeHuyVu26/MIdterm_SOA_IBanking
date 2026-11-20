@@ -9,7 +9,7 @@ def err(r): return r.json()["detail"]["code"]
 def test_login_success_returns_token_and_profile():
     r = requests.post(f"{GW}/user/auth/login", json={"username": "sv_an", "password": "123456"})
     assert r.status_code == 200
-    d = r.json(); assert d["access_token"] and d["user"]["email"] == "an@example.com"
+    d = r.json(); assert d["access_token"] and "@" in d["user"]["email"]
     assert "password_hash" not in d["user"]
 
 def test_login_wrong_password_401():

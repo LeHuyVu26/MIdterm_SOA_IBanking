@@ -12,14 +12,16 @@ services:
     volumes: ["pgdata:/var/lib/postgresql/data", "./db/init.sql:/docker-entrypoint-initdb.d/init.sql"]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U postgres"], interval: 3s, retries: 20}
 
-  mailhog:
-    image: mailhog/mailhog
-    ports: ["8025:8025"]
-
   user-service:
     <<: *svc
     build: {context: ./services, args: {SERVICE: user}}
-    environment: {<<: *env, DATABASE_URL: postgresql://postgres:postgres@postgres/userdb}
+    environment:
+      <<: *env
+      DATABASE_URL: postgresql://postgres:postgres@postgres/userdb
+      EMAIL_SV_AN: ${EMAIL_SV_AN:-}
+      EMAIL_SV_BINH: ${EMAIL_SV_BINH:-}
+      EMAIL_SV_CHI: ${EMAIL_SV_CHI:-}
+      EMAIL_SV_DUNG: ${EMAIL_SV_DUNG:-}
   tuition-service:
     <<: *svc
     build: {context: ./services, args: {SERVICE: tuition}}
@@ -27,8 +29,13 @@ services:
   notification-service:
     restart: unless-stopped
     build: {context: ./services, args: {SERVICE: notification}}
-    environment: {<<: *env, SMTP_HOST: mailhog, SMTP_PORT: "1025"}
-    depends_on: [mailhog]
+    environment:
+      <<: *env
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?Thiếu SMTP_USER - hãy tạo file .env từ .env.example}
+      SMTP_PASS: ${SMTP_PASS:?Thiếu SMTP_PASS - hãy tạo file .env từ .env.example}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-iBanking TDTU}
   payment-service:
     <<: *svc
     build: {context: ./services, args: {SERVICE: payment}}

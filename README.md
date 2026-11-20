@@ -2,17 +2,21 @@
 
 ## 1. Chạy hệ thống
 Yêu cầu: Docker + Docker Compose.
+
+**Cấu hình email thật (chỉ làm 1 lần):**
+1. Bật xác minh 2 bước cho Gmail gửi, rồi tạo *App Password* tại https://myaccount.google.com/apppasswords.
+2. Mở `.env` điền `SMTP_USER`, `SMTP_PASS` (App Password) và `EMAIL_SV_AN`, `EMAIL_SV_BINH`, `EMAIL_SV_CHI`, `EMAIL_SV_DUNG` (hộp thư thật sẽ nhận OTP của từng tài khoản mẫu; có thể dùng chung 1 email).
+
 ```bash
 docker compose up --build -d
 ```
 | Thành phần | URL |
 |---|---|
 | Web UI (qua API Gateway nginx) | http://localhost:8080 |
-| MailHog – xem email OTP/xác nhận | http://localhost:8025 |
 
 Tài khoản mẫu (mật khẩu `123456`): `sv_an`, `sv_binh`, `sv_chi` (số dư 20.000.000 ₫), `sv_dung` (1.000.000 ₫ – demo không đủ số dư).
 MSSV mẫu: `52100001` (15tr), `52100002` (15tr), `52100003` (12tr), `52100004` (18,5tr), `52100005` (9tr).
-Reset dữ liệu: `docker compose down -v`.
+Reset dữ liệu: `docker compose down -v`. Đổi email trong `.env` thì chỉ cần `docker compose up -d --force-recreate user-service` (email được đồng bộ lại khi khởi động).
 
 **Test tự động** (pytest, thư mục `tests/`):
 ```bash

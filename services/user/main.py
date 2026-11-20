@@ -25,10 +25,13 @@ def hash_pw(pw, salt=None):
 def check_pw(pw, stored):
     return secrets.compare_digest(hash_pw(pw, stored.split("$")[0]), stored)
 
-SEED = [("sv_an", "Nguyễn Văn An", "0901000001", "an@example.com"),
-        ("sv_binh", "Trần Thị Bình", "0901000002", "binh@example.com"),
-        ("sv_chi", "Lê Minh Chi", "0901000003", "chi@example.com"),
-        ("sv_dung", "Phạm Quốc Dũng", "0901000004", "dung@example.com")]
+def seed_email(username, default):
+    return os.environ.get("EMAIL_" + username.upper(), "").strip() or default
+
+SEED = [("sv_an", "Nguyễn Văn An", "0901000001", seed_email("sv_an", "an@example.com")),
+        ("sv_binh", "Trần Thị Bình", "0901000002", seed_email("sv_binh", "binh@example.com")),
+        ("sv_chi", "Lê Minh Chi", "0901000003", seed_email("sv_chi", "chi@example.com")),
+        ("sv_dung", "Phạm Quốc Dũng", "0901000004", seed_email("sv_dung", "dung@example.com"))]
 
 @app.on_event("startup")
 def init():
@@ -43,6 +46,10 @@ def init():
                     for u in SEED:  # mật khẩu mẫu: 123456
                         cur.execute("INSERT INTO users(username,password_hash,full_name,phone,email) VALUES(%s,%s,%s,%s,%s)",
                                     (u[0], hash_pw("123456"), u[1], u[2], u[3]))
+                # DB cũ (volume đã có dữ liệu): đồng bộ lại email nếu .env có cấu hình email thật
+                for u in SEED:
+                    if os.environ.get("EMAIL_" + u[0].upper(), "").strip():
+                        cur.execute("UPDATE users SET email=%s WHERE username=%s", (u[3], u[0]))
             return
         except psycopg2.OperationalError:
             time.sleep(2)

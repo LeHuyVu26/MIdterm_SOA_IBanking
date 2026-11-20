@@ -1,6 +1,8 @@
-import re, time, email, threading, requests, concurrent.futures as cf
+import time, subprocess, threading, requests, concurrent.futures as cf
 
-GW, MH = "http://localhost:8080/api", "http://localhost:8025/api/v2/messages?limit=200"
+import os
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # thư mục chứa docker-compose.yml
+GW = "http://localhost:8080/api"
 
 def login(u, pw="123456"):
     r = requests.post(f"{GW}/user/auth/login", json={"username": u, "password": pw}); r.raise_for_status()
@@ -12,14 +14,13 @@ def init(h, mssv):
     return r.json()["transaction_id"]
 
 def otp_of(txn, skip=()):
+    sql = f"SELECT code FROM otps WHERE txn_id='{txn}' ORDER BY id DESC LIMIT 1"
     for _ in range(30):
-        for m in requests.get(MH).json()["items"]:
-            body = email.message_from_string(m["Raw"]["Data"]).get_payload(decode=True).decode("utf-8", "ignore") # type: ignore
-            if txn in body:
-                code = re.search(r"OTP: (\d{6})", body)
-                if code and code.group(1) not in skip: return code.group(1)
+        out = subprocess.run(["docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "paymentdb", "-tAc", sql],
+                             capture_output=True, text=True, cwd=ROOT).stdout.strip()
+        if out and out not in skip: return out
         time.sleep(0.5)
-    raise AssertionError("không thấy email OTP")
+    raise AssertionError("không thấy OTP trong DB")
 
 def post_verify(s, h, txn, otp):
     return s.post(f"{GW}/payment/payments/{txn}/verify-otp", json={"otp": otp}, headers=h)
